@@ -1,0 +1,3 @@
+to make a .tar.bz2:
+
+tar -cvjSf name.tar.bz2 contents

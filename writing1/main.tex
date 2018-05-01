@@ -1,0 +1,72 @@
+\documentclass[draftclsnofoot,onecolumn,journal,letterpaper,10pt]{IEEEtran}
+
+\usepackage{url}
+\usepackage{geometry}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{varwidth}
+\usepackage{setspace}
+
+\geometry{margin=0.75in}
+\singlespacing   
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true}
+
+\title{Writing 1 - Threads, Processes, CPU Scheduling}
+\author{by James Barry}
+
+\begin{document}
+\begin{titlepage}
+  \clearpage
+  \maketitle
+  \thispagestyle{empty}
+    \begin{abstract}
+      The purpose of this assignment is to examine computing processes, threads, and CPU scheduling, covering how Windows and FreeBSD handle them. Then, we will also compare the two operating systems' methods to Linux's, taking a look at differences, similarities, and why these differences and similarities may exist. This analysis is based on the most recent versions of the respective operating systems that there is documentation for, unless otherwise noted.
+    \end{abstract}
+\end{titlepage}
+
+\tableofcontents
+\pagebreak
+
+\section{Windows}
+
+\subsection{Processes and Threads}
+In Windows, processes and threads are very closely connected. A process contains what is needed to execute a program, including "virtual address space, executable code, open handles to system objects, a security context, a unique process identifier, environment variables, a priority class, [and] minimum and maximum working set sizes." \cite{windowsprocesses:online} Threads, on the other hand, are the part of a process that can actually be scheduled for execution, and each process is started with a single primary thread. More threads can be spawned from one process, and they share virtual address space and system resources. Individual threads also hold exception handlers, scheduling priority, thread local storage, and more. Windows also supports a number of thread management tools:
+
+\begin{itemize}
+\item Preemptive multitasking, which schedules multiple threads from multiple programs to execute simultaneously using multiple cores.
+\item Job objects, which group together multiple processes. Operations done on the object affect all processes within.
+\item The thread pool, which allows applications to more easily manage their worker threads and reduce the overall number of active threads. 
+\item User-mode scheduling, which lets applications circumvent the system schedule and instead schedule their own threads. They can also regain control of their threads if they block in the kernel. 
+\end{itemize}
+
+\subsection{Scheduling}
+Windows uses a scheduling priority system to decide which process should receive the next CPU time slice. Priority ranges from 0 to 31, and any processes that share the same priority are considered equal. Essentially, it starts at the top, assigning time to the highest priority processes round-robin style. If none of them are ready to run, it moves down to the next highest priority process. If a higher priority one needs to run again, it will halt execution of lower priority ones and move back up. Microsoft documentation warns against setting processes to very high priorities, since setting one too high will deny CPU time to other processes, and setting too many to high priority dilutes the effect.
+
+\subsection{Windows vs. Linux}
+Taking a look at history first, Linux originally had a very faulty implementation of POSIX threads known as LinuxThreads. It stemmed from an idea that threads could be implemented if the kernel simply allowed multiple processes to share address space, leading to threads literally just being processes, not allowing for any actual POSIX functionality\cite{distinction}. They were simply created using "clone", allowing for shared address space but no signal handling, scheduling, or inter-process synchronization. LinuxThreads was later replaced by the Native POSIX Thread Library, leading to an implementation of threads actually quite similar to the current Windows implementation. In fact, the first implementation of NPTL was in Red Hat Linux 9 with the goal of mimicking Windows's ability to handle threads that refuse to yield to the system\cite{NPTL}.
+
+Looking to scheduling, Linux does things a bit differently, offering a variety of algorithms for scheduling. It originally used an O(n) time scheduler, and later an O(1) time scheduler, but the default scheduler as of now is the Completely Fair Scheduler, which treats all processes as equal. It does this by maintaining a red-black tree that keeps a record of a given task's virtual runtime, scaling its priority inversley with its virtual runtime. It also considers sleeper fairness, meaning a process that is waiting for I/O or not currently runnable for some reason or another is compensated for when it becomes runnable. Conversely, Windows uses a multilevel feedback queue, as described earlier. There are also popular third party schedulers that can be used by recompiling the kernel, such as the Brain Fuck Scheduler, which removes a lot of the heuristics from the Completely Fair Scheduler, improving the performance of Linux on weaker machines but not scaling well on PCs with more than 16 cores\cite{bfs}. Another alternative is the Deadline scheduler, which prioritizes processes based on worst-case execution time and a given deadline, making it ideal for real-time workloads\cite{deadline}. However, the default scheduler provided with Linux simply treats all processes as equal, while Windows schedules processes based on a priority value.
+
+As for why these differences exist, it likely stems from Windows being proprietary while Linux is open source. The money and hard goals behind Windows allowed it to reach an ideal implementation of processes and threads earlier than Linux was, and using a priority-based scheduler allowed it to fit its goal of being simple consumer software. Linux, on the other hand, took longer to reach a good implementation of threads and processes, and it was completed in a proprietary third-party distribution as well (Red Hat). However, the open-source nature of Linux has allowed it to accumulate a wide variety of possible scheduling algorithms, while Windows only supports the default multilevel feedback queue, making Windows straightforward but limited in comparison.
+
+\section{FreeBSD}
+
+\subsection{Processes and Threads}
+FreeBSD is is an open-source Unix-like operating system designed for multitasking.  Any running program is considered a process, and is identified by a unique process ID. Running a command starts at least one new process, and the system runs a number of processes as well. They have an owner and group, just like a file, which determines what files and devices they can open or modify. FreeBSD also supports daemons, which are a special type of process that disconnect from the terminal as soon as possible, such as web or email servers. You can view running processes on a FreeBSD system using pw(1) or top(1), and processes can be killed using the same system of signals that Linux uses. It also shares thread implementation with Linux, offering two methods. The default is libpthread, and libthr can be used as well. Threads can be identified by process ID using a getpid(2) call\cite{bsdprocess}. 
+
+\subsection{Scheduling}
+FreeBSD uses the ULE scheduler, after moving on from the 4.4BSD scheduler. It attempts to remove some of the overhead from traditional schedulers, since they have to deal with traversing a dynamic scheduler switch every time a decision needs to be made. FreeBSD handles this by requiring that the scheduler be selected at compile time, rather than going through a function call for every scheduling decision. FreeBSD implements a low-level scheduler that runs every time a thread blocks and a new one must be selected, which makes a decision quickly with minimal information. The kernel maintains run queues for each CPU in the system, allowing the low-level scheduler to simply have to pick a thread from the highest-priority non-empty run queue for a given CPU. There's also a high-level scheduler, which assigns a CPU and priority to every runnable thread\cite{bsdschedule}. 
+
+\subsection{FreeBSD vs. Linux}
+FreeBSD and Linux essentially share their implementation of threads and processes. Scheduling is where the differences really show, since the main goal of FreeBSD is to handle process scheduling more efficiently than Linux does. While Linux simply treats all processes as equal, assigning CPU time evenly to all, FreeBSD uses a priority system and run queues to make scheduling decisions extremely quickly. This means that FreeBSD can make decisions with high efficiency, making it a great server distribution, but it also means that all scheduling decisions are made by the operating system. Linux, on the other hand, offers greater on-the-fly customizability. These differences exist because FreeBSD was created with the explicit goals of making these differences. The point of FreeBSD is to be simple, straightforward, and fast, and these differences are what make this happen.
+  
+% bibliography
+\pagebreak
+\nocite{*} %if nothing is referenced it will still show up in refs
+\bibliographystyle{plain}
+\bibliography{refs}
+%end bibliography
+
+\end{document}
