@@ -1,0 +1,78 @@
+\documentclass[draftclsnofoot,onecolumn,journal,letterpaper,10pt]{IEEEtran}
+
+\usepackage{url}
+\usepackage{geometry}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{varwidth}
+\usepackage{setspace}
+
+\geometry{margin=0.75in}
+\singlespacing   
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true}
+
+\title{Writing 2 - Input/Output}
+\author{by James Barry}
+
+\begin{document}
+\begin{titlepage}
+  \clearpage
+  \maketitle
+  \thispagestyle{empty}
+    \begin{abstract}
+      The purpose of this assignment is to examine input/output (I/O) methodology and functionality in Windows and FreeBSD, and then compare each operating system's methods to Linux's. I/O is the communication between an information processing device and the rest of the world, and is integral to any operating system. The analysis is based on the most recent version of the respective operating systems that there is documentation for, unless otherwise noted. 
+    \end{abstract}
+\end{titlepage}
+
+\tableofcontents
+\pagebreak
+
+\section{Windows}
+
+\subsection{Input/Output}
+
+Windows has a few key features that define their I/O model, as covered on their documentation website.\cite{windowsio}
+\begin{itemize}
+\item Windows supports asynchronous I/O; since I/O operations are so slow, Windows allows processes that don't currently require I/O to continue processing while I/O actions are performed. The alternative is waiting for I/O to finish before doing any processing, but this would drastically slow the system.
+\item The Windows I/O manager has a consistent interface, so all kernel-mode drivers communicate with it in the same way. As such, Windows has a standard kernel I/O data structure called an I/O request packet (IRP), which fully describes an I/O request. This means all information for an I/O request can be passed down the I/O driver stack with one persistent pointer, rather than many smaller ones.\cite{windowsirp}
+\item I/O operations are layered, meaning that user-mode subsystems call I/O system services, and the I/O manager intercepts these calls and sends them down the stack to physical I/O devices. This allows user-mode subsystems to interface with the otherwise kernel-mode I/O manager.
+\item The I/O manager has a set of standard routines that drivers must support, and some optional ones that they can choose to support. This helps to bring consistency to otherwise vastly different peripheral devices. 
+\item Drivers are object-based, like everything in Windows. This means the I/O manager and similar components of the operating system use kernel-mode routines to let drivers manipulate these objects. 
+\end{itemize}
+
+The implications of these features is that the operating system has no knowledge of the I/O request process. It just interacts with virtual files while the device driver has to handle I/O operations. Note that this allows for the support of Fast I/O, which allows for "rapid synchronous I/O on cached files"\cite{windowsfastio}. This is done by directly transferring data between the user buffer and the system cache, completely bypassing the file system and driver stack described above. This means fast I/O requests can be fulfilled instantly. However, if the needed information is not completely cached, it can lead to a page fault, falling back on the normal IRP methodology. 
+
+\subsection{Windows vs. Linux}
+
+There are two key similarities between Windows and Linux I/O. First, they support a similar notion of a file, which is the basis of their I/O operations. They also both pass requests down an I/O stack to get requests from the application layer to the kernel and then on to the hardware. However, the similarities end there.
+
+Linux has a noticeably simpler I/O system, likely due to the more straightforward and simplistic development goals of Linux. One could argue that Windows is overengineered due to its development cycle and the sheer size of Microsoft. This is why Windows does everything in an object-oriented fashion, including I/O. This allows for greater abstraction at a lower level, but makes the whole system a bit more bureaucratic. Linux uses simple procedural programming and linked lists to accomplish all of its I/O.\cite{linuxio} 
+
+It's also worth noting that legacy versions of Windows (XP and older) had some security issues with I/O. Early versions of Windows (DOS, 95, 98) didn't block I/O at all, so any programs had full control of I/O. This had speed benefits but security holes. Malicious applications had full access to network and disk drivers. Slightly newer versions (2000, NT, ME, XP) blocked I/O access using some securiy features, but hacks rose out of the depths of the net that restored full access to I/O. Sadly, newer versions of Windows do not have their I/O security as well documented, so it's difficult to say if it still has these sorts of issues. However, Linux deals with the problem in a simpler way, only giving I/O to the root user or kernel-space drivers. It then allows the user to expand these rights through robust permission controls.\cite{iosecurity} 
+
+\section{FreeBSD}
+
+\subsection{Input/Output}
+
+FreeBSD is UNIX based, so all device interaction is done with file descriptors. There's no particular structure for I/O operations, so bytes are read randomly or sequentially through file streams. A general I/O interface allows file streams to be shared between threads and processes. Since everything in the UNIX kernel is seens as a file, device drivers are responsible for identifying what's a true file and using I/O operations on them.\cite{bsdio}
+
+The I/O process in FreeBSD is similar to Windows, though. A stack of systems that operate on files and file streams creates an I/O workflow, passing bytes down the stack. The stack is effectively split in half, with the top half handling application-layer operations and the bottom half handling kernel- and hardware-level operations. The lower layer is called the GEOM in FreeBSD, which is what provides the standardized storage access methods. A number of geom modules use this framework, such as the geom mirror, which gives RAID1 and mirror functionality. Requests in the GEOM have a FIFO policy.\cite{bsdnetflix}
+
+\subsection{FreeBSD vs. Linux}
+
+FreeBSD and Linux have a lot of similarities, considering they're both UNIX operating systems. Everything's a file, and I/O is done with file descriptors. stdin, stdout, and stderror are all used to communicate between processes and threads. Similar to Windows, they use system calls to make I/O requests in a virtual file system. Linux and FreeBSD also both use a C-based struct to define their I/O requests. They also both have a layer of abstraction and a stack of file operating systems that handle all I/O requests and file manipulation. 
+
+Differences come in their scheduling of I/O. Linux defaultly uses noop, which uses a simple FIFO system to handle requests. FreeBSD instead uses C-LOOK, which uses a circular linked list instead. Linux also only has one layer in the I/O stack, rather than drawing a line between application-level and kernel- and hardware-level operations.\cite{bsdmanual}
+
+Since FreeBSD is a more full-fledged operating system than Linux is, the I/O is considerably more efficient. The default Linux noop elevator isn't the most effective way of doing scheduling, and FreeBSD fixes that issue. However, since they're both UNIX based, they have a similar underlying system. Compared to Windows, there's a plethora of differences. Windows has a completely different underlying system and, as such, the I/O system developed by Microsoft works differently and handles a different set of problems. 
+  
+% bibliography
+\pagebreak
+\nocite{*} %if nothing is referenced it will still show up in refs
+\bibliographystyle{plain}
+\bibliography{refs}
+%end bibliography
+
+\end{document}
