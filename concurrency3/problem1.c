@@ -1,3 +1,8 @@
+//James Barry
+//for OS2 @ OSU, S2018
+//This program creates three threads that "use" a resource. If all three "use" the resource at once, they must all finish before they can "use" it again.
+//For execution instructions, check the readme. Compile with make.
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -29,11 +34,11 @@ void* useResource(void* x){
         sleep(a);
         
         //all done
-        sem_post(&resource->busy)
+        sem_post(&resource->busy);
         //get the sem value so we can see if resource is full yet
-        sem_getvalue(&resource->busy, &b)
+        sem_getvalue(&resource->busy, &b);
         while(b!=3){
-            sem_getvalue(&resource->busy, &b)
+            sem_getvalue(&resource->busy, &b);
         }
     }
 }
@@ -53,7 +58,7 @@ int main(){
     //initialize threads
     for(a = 0; a < 3; a++) pthread_create(&threads[a], NULL, useResource, resource);
     //join threads
-    for(a = 0; a < 3; a++) pthread_join(threads[i], NULL);
+    for(a = 0; a < 3; a++) pthread_join(threads[a], NULL);
     
     return 0;
 }
